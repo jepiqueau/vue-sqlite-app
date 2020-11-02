@@ -1,8 +1,8 @@
 <template>
-  <h1>StoreDefault</h1>
+  <h1>DatabaseNoEncryption</h1>
   <Suspense>
     <template #default>
-      <DefaultTest />
+      <NoEncryptionTest />
     </template>
     <template #feedback>
       <div> Loading ... </div>
@@ -10,10 +10,10 @@
   </Suspense>
 </template>
 <script>
-import DefaultTest from '@/components/DefaultTest.vue';
+import NoEncryptionTest from '@/components/NoEncryptionTest.vue';
 export default {
-  name: 'StoreDefault',
-  components: { DefaultTest }
+  name: 'DatabaseNoEncryption',
+  components: { NoEncryptionTest }
 };
 </script>
 <style>

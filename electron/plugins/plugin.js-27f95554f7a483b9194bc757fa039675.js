@@ -2117,563 +2117,1842 @@ var capacitorPlugin = (function (exports) {
         mergeWebPlugin(Plugins, plugin);
     };
 
-    class Data {
-    }
-
     class UtilsSQLite {
         constructor() {
-            this.pathDB = './DataStorage';
+            this.pathDB = 'Databases';
             this.Path = null;
             this.NodeFs = null;
+            this.RemoteRef = null;
+            this.Os = null;
             this.SQLite3 = null;
+            this.AppName = null;
+            this.HomeDir = null;
             this.Path = require('path');
             this.NodeFs = require('fs');
+            this.Os = require('os');
             this.SQLite3 = require('sqlite3');
+            this.HomeDir = this.Os.homedir();
+            /**
+             * !!! in case you want your databases to be stored in YourApplication/Electron/
+             * comment the below line
+             */
+            this.AppName = require('../../package.json').name;
         }
-        connection(dbName, readOnly
-        /*,key?:string*/ ) {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const flags = readOnly
-                    ? this.SQLite3.OPEN_READONLY
-                    : this.SQLite3.OPEN_CREATE | this.SQLite3.OPEN_READWRITE;
-                console.log('in UtilsSQLite.connection flags ', flags);
-                // get the path for the database
-                const dbPath = yield this._getDBPath(dbName);
-                console.log('#### dbPath ' + dbPath);
-                let dbOpen;
-                if (dbPath != null) {
-                    try {
-                        dbOpen = new this.SQLite3.Database(dbPath, flags);
-                        resolve(dbOpen);
-                    }
-                    catch (e) {
-                        console.log('Error: in UtilsSQLite.connection ', e);
-                        resolve(null);
-                    }
-                }
-            }));
-        }
-        getWritableDatabase(dbName
-        /*, secret: string*/ ) {
-            return __awaiter(this, void 0, void 0, function* () {
-                const db = yield this.connection(dbName, false /*,secret*/);
-                return db;
-            });
-        }
-        getReadableDatabase(dbName
-        /*, secret: string*/ ) {
-            return __awaiter(this, void 0, void 0, function* () {
-                const db = yield this.connection(dbName, true /*,secret*/);
-                return db;
-            });
-        }
-        _getDBPath(dbName) {
-            return __awaiter(this, void 0, void 0, function* () {
-                let retPath = null;
-                const dbFolder = this.pathDB;
-                retPath = this.Path.join(dbFolder, dbName);
+        connection(dbName, readOnly /*,key?:string*/) {
+            const flags = readOnly
+                ? this.SQLite3.OPEN_READONLY
+                : this.SQLite3.OPEN_CREATE | this.SQLite3.OPEN_READWRITE;
+            // get the path for the database
+            const dbPath = this.getDBPath(dbName);
+            let dbOpen = null;
+            if (dbPath.length > 0) {
                 try {
-                    if (!this.NodeFs.existsSync(dbFolder)) {
-                        yield this._mkdirSyncRecursive(dbFolder);
-                    }
+                    dbOpen = new this.SQLite3.Database(dbPath, flags);
                 }
                 catch (e) {
-                    console.log('Error: in getDBPath', e);
+                    console.log('Error: in UtilsSQLite.connection ', e);
+                    dbOpen = null;
                 }
-                return retPath;
-            });
+                finally {
+                    if (dbOpen != null) {
+                        const statements = 'PRAGMA foreign_keys = ON;';
+                        dbOpen.serialize(() => {
+                            dbOpen.exec(statements, (err) => {
+                                if (err) {
+                                    console.log(`exec: Error PRAGMA foreign_keys failed : ${err.message}`);
+                                    dbOpen = null;
+                                }
+                            });
+                        });
+                    }
+                    return dbOpen;
+                }
+            }
+        }
+        getWritableDatabase(dbName /*, secret: string*/) {
+            const db = this.connection(dbName, false /*,secret*/);
+            return db;
+        }
+        getReadableDatabase(dbName /*, secret: string*/) {
+            const db = this.connection(dbName, true /*,secret*/);
+            return db;
+        }
+        getDBPath(dbName) {
+            let retPath = '';
+            const dbFolder = this.pathDB;
+            if (this.AppName == null) {
+                let sep = '/';
+                const idx = __dirname.indexOf('\\');
+                if (idx != -1)
+                    sep = '\\';
+                const dir = __dirname.substring(0, __dirname.lastIndexOf(sep) + 1);
+                retPath = this.Path.join(dir, dbFolder, dbName);
+                const retB = this._createFolderIfNotExists(this.Path.join(dir, dbFolder));
+                if (!retB)
+                    retPath = '';
+            }
+            else {
+                retPath = this.Path.join(this.HomeDir, dbFolder, this.AppName, dbName);
+                let retB = this._createFolderIfNotExists(this.Path.join(this.HomeDir, dbFolder));
+                if (retB) {
+                    retB = this._createFolderIfNotExists(this.Path.join(this.HomeDir, dbFolder, this.AppName));
+                    if (!retB)
+                        retPath = '';
+                }
+                else {
+                    retPath = '';
+                }
+            }
+            return retPath;
+        }
+        _createFolderIfNotExists(folder) {
+            let ret;
+            try {
+                if (!this.NodeFs.existsSync(folder)) {
+                    this._mkdirSyncRecursive(folder);
+                }
+                ret = true;
+            }
+            catch (e) {
+                console.log('Error: in getDBPath', e);
+                ret = false;
+            }
+            return ret;
         }
         _mkdirSyncRecursive(directory) {
-            return __awaiter(this, void 0, void 0, function* () {
-                var path = directory.replace(/\/$/, '').split('/');
-                for (var i = 1; i <= path.length; i++) {
-                    var segment = path.slice(0, i).join('/');
-                    segment.length > 0 && !this.NodeFs.existsSync(segment)
-                        ? this.NodeFs.mkdirSync(segment)
-                        : null;
-                }
-                return;
-            });
+            var path = directory.replace(/\/$/, '').split('/');
+            for (var i = 1; i <= path.length; i++) {
+                var segment = path.slice(0, i).join('/');
+                segment.length > 0 && !this.NodeFs.existsSync(segment)
+                    ? this.NodeFs.mkdirSync(segment)
+                    : null;
+            }
+            return;
         }
     }
 
-    const COL_ID = 'id';
-    const COL_NAME = 'name';
-    const COL_VALUE = 'value';
-    //const fs: any = window['fs' as any];
-    //const path: any = window['path' as any];
-    class StorageDatabaseHelper {
-        constructor() {
-            this.Path = null;
-            this.NodeFs = null;
-            this.Path = require('path');
-            this.NodeFs = require('fs');
-            this._utils = new UtilsSQLite();
-        }
-        openStore(dbName, tableName) {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                let ret = false;
-                this._db = yield this._utils.connection(dbName, false
-                /*,this._secret*/ );
-                if (this._db !== null) {
-                    const bRet = yield this._createTable(tableName);
-                    if (bRet) {
-                        this._dbName = dbName;
-                        this._tableName = tableName;
-                        console.log("** OpenStore this._tableName "
-                            + this._tableName);
-                        ret = true;
-                    }
-                    else {
-                        this._dbName = "";
-                        this._tableName = "";
-                        console.log("** OpenStore this._tableName "
-                            + this._tableName + " failed");
-                    }
+    /* JSON function */
+    function isJsonSQLite(obj) {
+        const keyFirstLevel = [
+            'database',
+            'version',
+            'encrypted',
+            'mode',
+            'tables',
+        ];
+        if (obj == null ||
+            (Object.keys(obj).length === 0 && obj.constructor === Object))
+            return false;
+        for (var key of Object.keys(obj)) {
+            if (keyFirstLevel.indexOf(key) === -1)
+                return false;
+            if (key === 'database' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'version' && typeof obj[key] != 'number')
+                return false;
+            if (key === 'encrypted' && typeof obj[key] != 'boolean')
+                return false;
+            if (key === 'mode' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'tables' && typeof obj[key] != 'object')
+                return false;
+            if (key === 'tables') {
+                for (let i = 0; i < obj[key].length; i++) {
+                    const retTable = isTable(obj[key][i]);
+                    if (!retTable)
+                        return false;
                 }
-                resolve(ret);
-            }));
+            }
         }
-        _createTable(tableName) {
-            return __awaiter(this, void 0, void 0, function* () {
-                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                    let ret = false;
-                    const CREATE_STORAGE_TABLE = 'CREATE TABLE IF NOT EXISTS ' +
-                        tableName +
-                        '(' +
-                        COL_ID +
-                        ' INTEGER PRIMARY KEY AUTOINCREMENT,' + // Define a primary key
-                        COL_NAME +
-                        ' TEXT NOT NULL UNIQUE,' +
-                        COL_VALUE +
-                        ' TEXT' +
-                        ')';
-                    this._db.run(CREATE_STORAGE_TABLE, (err) => __awaiter(this, void 0, void 0, function* () {
-                        if (err) {
-                            console.log('Error: in createTable ', err.message);
-                            resolve(ret);
-                        }
-                        else {
-                            ret = yield this._createIndex(tableName);
-                            resolve(ret);
-                        }
-                    }));
-                }));
-            });
-        }
-        _createIndex(tableName) {
-            return __awaiter(this, void 0, void 0, function* () {
-                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                    const idx = `index_${tableName}_on_${COL_NAME}`;
-                    const CREATE_INDEX_NAME = 'CREATE INDEX IF NOT EXISTS ' +
-                        idx +
-                        ' ON ' +
-                        tableName +
-                        ' (' +
-                        COL_NAME +
-                        ')';
-                    this._db.run(CREATE_INDEX_NAME, (err) => __awaiter(this, void 0, void 0, function* () {
-                        if (err) {
-                            console.log('Error: in createIndex ', err.message);
-                            resolve(false);
-                        }
-                        else {
-                            resolve(true);
-                        }
-                    }));
-                }));
-            });
-        }
-        setTable(tableName) {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                let ret = false;
-                this._db = yield this._utils.getWritableDatabase(this._dbName /*,this._secret*/);
-                const bRet = yield this._createTable(tableName);
-                if (bRet) {
-                    this._tableName = tableName;
-                    ret = true;
-                }
-                else {
-                    this._tableName = "";
-                    ret = false;
-                }
-                this._db.close();
-                resolve(ret);
-            }));
-        }
-        // Insert a data into the database
-        set(data) {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getWritableDatabase(this._dbName /*,this._secret*/);
-                // Check if data.name does not exist otherwise update it
-                const res = yield this.get(data.name);
-                if (res.id != null) {
-                    // exists so update it
-                    const resUpd = yield this.update(data);
-                    db.close();
-                    resolve(resUpd);
-                }
-                else {
-                    // does not exist add it
-                    const DATA_INSERT = `INSERT INTO "${this._tableName}" 
-                ("${COL_NAME}", "${COL_VALUE}") 
-                VALUES (?, ?)`;
-                    db.run(DATA_INSERT, [data.name, data.value], (err) => {
-                        if (err) {
-                            console.log('Data INSERT: ', err.message);
-                            db.close();
-                            resolve(false);
-                        }
-                        else {
-                            db.close();
-                            resolve(true);
-                        }
-                    });
-                }
-            }));
-        }
-        // get a Data
-        get(name) {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                let data = null;
-                const db = yield this._utils.getReadableDatabase(this._dbName /*,this._secret*/);
-                const DATA_SELECT_QUERY = 'SELECT * FROM ' +
-                    this._tableName +
-                    ' WHERE ' +
-                    COL_NAME +
-                    " = '" +
-                    name +
-                    "'";
-                db.all(DATA_SELECT_QUERY, (err, rows) => {
-                    if (err) {
-                        data = new Data();
-                        data.id = null;
-                        db.close();
-                        resolve(data);
-                    }
-                    else {
-                        data = new Data();
-                        if (rows.length >= 1) {
-                            data = rows[0];
-                        }
-                        else {
-                            data.id = null;
-                        }
-                        db.close();
-                        resolve(data);
+        return true;
+    }
+    function isTable(obj) {
+        const keyTableLevel = ['name', 'schema', 'indexes', 'values'];
+        let nbColumn = 0;
+        if (obj == null ||
+            (Object.keys(obj).length === 0 && obj.constructor === Object))
+            return false;
+        for (var key of Object.keys(obj)) {
+            if (keyTableLevel.indexOf(key) === -1)
+                return false;
+            if (key === 'name' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'schema' && typeof obj[key] != 'object')
+                return false;
+            if (key === 'indexes' && typeof obj[key] != 'object')
+                return false;
+            if (key === 'values' && typeof obj[key] != 'object')
+                return false;
+            if (key === 'schema') {
+                obj['schema'].forEach((element) => {
+                    if (element.column) {
+                        nbColumn++;
                     }
                 });
+                for (let i = 0; i < nbColumn; i++) {
+                    const retSchema = isSchema(obj[key][i]);
+                    if (!retSchema)
+                        return false;
+                }
+            }
+            if (key === 'indexes') {
+                for (let i = 0; i < obj[key].length; i++) {
+                    const retIndexes = isIndexes(obj[key][i]);
+                    if (!retIndexes)
+                        return false;
+                }
+            }
+            if (key === 'values') {
+                if (nbColumn > 0) {
+                    for (let i = 0; i < obj[key].length; i++) {
+                        if (typeof obj[key][i] != 'object' || obj[key][i].length != nbColumn)
+                            return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    function isSchema(obj) {
+        const keySchemaLevel = ['column', 'value', 'foreignkey'];
+        if (obj == null ||
+            (Object.keys(obj).length === 0 && obj.constructor === Object))
+            return false;
+        for (var key of Object.keys(obj)) {
+            if (keySchemaLevel.indexOf(key) === -1)
+                return false;
+            if (key === 'column' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'value' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'foreignkey' && typeof obj[key] != 'string')
+                return false;
+        }
+        return true;
+    }
+    function isIndexes(obj) {
+        const keyIndexesLevel = ['name', 'column'];
+        if (obj == null ||
+            (Object.keys(obj).length === 0 && obj.constructor === Object))
+            return false;
+        for (var key of Object.keys(obj)) {
+            if (keyIndexesLevel.indexOf(key) === -1)
+                return false;
+            if (key === 'name' && typeof obj[key] != 'string')
+                return false;
+            if (key === 'column' && typeof obj[key] != 'string')
+                return false;
+        }
+        return true;
+    }
+
+    class DatabaseSQLiteHelper {
+        constructor(dbName, dbVersion = 1, upgradeStatements) {
+            this.isOpen = false;
+            this.NodeFs = null;
+            this._alterTables = {};
+            this._commonColumns = {};
+            this.NodeFs = require('fs');
+            this._utils = new UtilsSQLite();
+            this._databaseName = dbName;
+            this._databaseVersion = dbVersion;
+            this._upgradeStatements = upgradeStatements;
+            //        this._encrypted = encrypted;
+            //        this._mode = mode;
+            //        this._secret = secret;
+            //        this._newsecret = newsecret;
+        }
+        setup() {
+            return __awaiter(this, void 0, void 0, function* () {
+                yield this._openDB();
+            });
+        }
+        _openDB() {
+            return __awaiter(this, void 0, void 0, function* () {
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db != null) {
+                    this.isOpen = true;
+                    // check if the database got a version
+                    let curVersion = yield this.getDBVersion(db);
+                    console.log('openDB: curVersion ', curVersion);
+                    if (curVersion === -1 || curVersion === 0) {
+                        yield this.updateDatabaseVersion(db, 1);
+                        curVersion = yield this.getDBVersion(db);
+                        console.log('openDB: After updateDatabaseVersion curVersion ', curVersion);
+                    }
+                    // check if the database version is Ok
+                    console.log('openDB: curVersion ' +
+                        curVersion +
+                        ' databaseVersion ' +
+                        this._databaseVersion);
+                    console.log('this._databaseName ', this._databaseName);
+                    console.log('this._upgradeStatements ', this._upgradeStatements);
+                    if (curVersion !== this._databaseVersion) {
+                        // version not ok
+                        if (this._databaseVersion < curVersion) {
+                            this.isOpen = false;
+                            console.log('openDB: Error Database version lower than current version');
+                        }
+                        else if (Object.keys(this._upgradeStatements).length === 0 ||
+                            Object.keys(this._upgradeStatements[this._databaseName]).length === 0) {
+                            this.isOpen = false;
+                            console.log('openDB: Error No upgrade statements found for that database');
+                        }
+                        else {
+                            // backup the current version
+                            const backup = yield this.backupDB(this._databaseName);
+                            if (backup) {
+                                // upgrade version process
+                                let res = yield this.onUpgrade(this._databaseName, db, curVersion, this._databaseVersion);
+                                if (res) {
+                                    this.isOpen = true;
+                                }
+                                else {
+                                    this.isOpen = false;
+                                    console.log('openDB: Error Failed on database version ' + 'upgrading');
+                                    // restore the old version
+                                    const restore = yield this.restoreDB(this._databaseName);
+                                    if (!restore) {
+                                        console.log('openDB: Error Failed on database version ' + 'restoring');
+                                    }
+                                }
+                            }
+                            else {
+                                this.isOpen = false;
+                                console.log('openDB: Error Failed on database version ' + 'backup');
+                            }
+                            // delete the backup file
+                            const retDel = yield this.deleteDB(`backup-${this._databaseName}`);
+                            if (!retDel) {
+                                console.log('openDB: Error Failed on deleting backup ');
+                            }
+                        }
+                    }
+                    db.close();
+                }
+                else {
+                    this.isOpen = false;
+                    console.log('openDB: Error Database connection failed');
+                }
+            });
+        }
+        createSyncTable() {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retRes = { changes: -1 };
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('exec: Error Database connection failed');
+                    resolve(retRes);
+                }
+                // check if the table has already been created
+                const isExists = yield this.isTableExists(db, 'sync_table');
+                if (!isExists) {
+                    const date = Math.round(new Date().getTime() / 1000);
+                    const stmts = `
+                BEGIN TRANSACTION;
+                CREATE TABLE IF NOT EXISTS sync_table (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    sync_date INTEGER
+                    );
+                INSERT INTO sync_table (sync_date) VALUES ("${date}");
+                COMMIT TRANSACTION;
+                `;
+                    retRes = yield this.execute(db, stmts);
+                }
+                db.close();
+                resolve(retRes);
             }));
         }
-        // update a Data
-        update(data) {
+        setSyncDate(syncDate) {
             return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getWritableDatabase(this._dbName /*,this._secret*/);
-                const DATA_UPDATE = `UPDATE "${this._tableName}" 
-            SET "${COL_VALUE}" = ? WHERE "${COL_NAME}" = ?`;
-                db.run(DATA_UPDATE, [data.value, data.name], (err) => {
+                let ret = false;
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('exec: Error Database connection failed');
+                    resolve(ret);
+                }
+                const sDate = Math.round(new Date(syncDate).getTime() / 1000);
+                let stmt = `UPDATE sync_table SET sync_date = ${sDate} `;
+                stmt += `WHERE id = 1;`;
+                const retRes = yield this.execute(db, stmt);
+                if (retRes.changes != -1)
+                    ret = true;
+                db.close();
+                resolve(ret);
+            }));
+        }
+        close(databaseName) {
+            return new Promise(resolve => {
+                const db = this._utils.connection(databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('close: Error Database connection failed');
+                    resolve(false);
+                }
+                this.isOpen = true;
+                db.close((err) => {
                     if (err) {
-                        console.log('Data UPDATE: ', err.message);
-                        db.close();
+                        console.log('close: Error closing the database');
                         resolve(false);
                     }
                     else {
-                        db.close();
+                        this.isOpen = false;
                         resolve(true);
                     }
                 });
+            });
+        }
+        exec(statements) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retRes = { changes: -1 };
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('exec: Error Database connection failed');
+                    resolve(retRes);
+                }
+                retRes = yield this.execute(db, statements);
+                db.close();
+                resolve(retRes);
             }));
         }
-        // isKey exists
-        iskey(name) {
+        execute(db, statements) {
+            return new Promise(resolve => {
+                let retRes = { changes: -1 };
+                db.serialize(() => {
+                    db.exec(statements, (err) => __awaiter(this, void 0, void 0, function* () {
+                        if (err) {
+                            console.log(`exec: Error Execute command failed : ${err.message}`);
+                            resolve(retRes);
+                        }
+                        else {
+                            const changes = yield this.dbChanges(db);
+                            retRes = { changes: changes };
+                            resolve(retRes);
+                        }
+                    }));
+                });
+            });
+        }
+        execSet(set) {
             return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const res = yield this.get(name);
-                if (res.id != null) {
-                    resolve(true);
+                let lastId = -1;
+                let retRes = { changes: -1, lastId: lastId };
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('run: Error Database connection failed');
+                    resolve(retRes);
+                }
+                let retB = yield this.beginTransaction(db);
+                if (!retB) {
+                    db.close();
+                    resolve(retRes);
+                }
+                retRes = yield this.executeSet(db, set);
+                if (retRes.changes === -1) {
+                    console.log('executeSet: Error executeSet failed');
+                    db.close();
+                    return retRes;
+                }
+                retB = yield this.endTransaction(db);
+                if (!retB) {
+                    db.close();
+                    resolve(retRes);
+                }
+                const changes = yield this.dbChanges(db);
+                retRes.changes = changes;
+                retRes.lastId = lastId;
+                db.close();
+                resolve(retRes);
+            }));
+        }
+        executeSet(db, set) {
+            return __awaiter(this, void 0, void 0, function* () {
+                let lastId = -1;
+                let retRes = { changes: -1, lastId: lastId };
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('executeSet: Error Database connection failed');
+                    return retRes;
+                }
+                for (let i = 0; i < set.length; i++) {
+                    const statement = 'statement' in set[i] ? set[i].statement : null;
+                    const values = 'values' in set[i] && set[i].values.length > 0 ? set[i].values : null;
+                    if (statement == null || values == null) {
+                        console.log('executeSet: Error statement or values are null');
+                        return retRes;
+                    }
+                    lastId = yield this.prepare(db, statement, values);
+                    if (lastId === -1) {
+                        console.log('executeSet: Error return lastId= -1');
+                        return retRes;
+                    }
+                }
+                const changes = yield this.dbChanges(db);
+                retRes.changes = changes;
+                retRes.lastId = lastId;
+                return retRes;
+            });
+        }
+        run(statement, values) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let lastId = -1;
+                let retRes = { changes: -1, lastId: lastId };
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('run: Error Database connection failed');
+                    resolve(retRes);
+                }
+                let retB = yield this.beginTransaction(db);
+                if (!retB) {
+                    db.close();
+                    resolve(retRes);
+                }
+                lastId = yield this.prepare(db, statement, values);
+                if (lastId === -1) {
+                    console.log('run: Error return lastId= -1');
+                    db.close();
+                    resolve(retRes);
+                }
+                retB = yield this.endTransaction(db);
+                if (!retB) {
+                    db.close();
+                    resolve(retRes);
+                }
+                const changes = yield this.dbChanges(db);
+                retRes.changes = changes;
+                retRes.lastId = lastId;
+                db.close();
+                resolve(retRes);
+            }));
+        }
+        prepare(db, statement, values) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retRes = -1;
+                if (values && values.length >= 1) {
+                    db.serialize(() => {
+                        const stmt = db.prepare(statement);
+                        stmt.run(values, (err) => __awaiter(this, void 0, void 0, function* () {
+                            if (err) {
+                                console.log(`prepare: Error Prepare command failed : ${err.message}`);
+                                resolve(retRes);
+                            }
+                            else {
+                                const lastId = yield this.getLastId(db);
+                                if (lastId != -1)
+                                    retRes = lastId;
+                                stmt.finalize();
+                                resolve(retRes);
+                            }
+                        }));
+                    });
                 }
                 else {
-                    resolve(false);
+                    db.serialize(() => {
+                        db.run(statement, (err) => __awaiter(this, void 0, void 0, function* () {
+                            if (err) {
+                                console.log(`prepare: Error Prepare command failed : ${err.message}`);
+                                resolve(retRes);
+                            }
+                            else {
+                                const lastId = yield this.getLastId(db);
+                                if (lastId != -1)
+                                    retRes = lastId;
+                                resolve(retRes);
+                            }
+                        }));
+                    });
                 }
             }));
         }
-        // remove a key
-        remove(name) {
+        query(statement, values) {
             return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const res = yield this.get(name);
-                if (res.id != null) {
-                    const db = yield this._utils.getWritableDatabase(this._dbName /*,this._secret*/);
-                    const DATA_DELETE = `DELETE FROM "${this._tableName}" 
-                WHERE "${COL_NAME}" = ?`;
-                    db.run(DATA_DELETE, name, (err) => {
+                const db = this._utils.connection(this._databaseName, true /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('query: Error Database connection failed');
+                    resolve([]);
+                }
+                const retRows = yield this.select(db, statement, values);
+                db.close();
+                resolve(retRows);
+            }));
+        }
+        select(db, statement, values) {
+            return new Promise(resolve => {
+                let retRows = [];
+                if (values && values.length >= 1) {
+                    db.serialize(() => {
+                        db.all(statement, values, (err, rows) => {
+                            if (err) {
+                                console.log(`select: Error Query command failed : ${err.message}`);
+                                resolve(retRows);
+                            }
+                            else {
+                                retRows = rows;
+                                resolve(retRows);
+                            }
+                        });
+                    });
+                }
+                else {
+                    db.serialize(() => {
+                        db.all(statement, (err, rows) => {
+                            if (err) {
+                                console.log(`select: Error Query command failed : ${err.message}`);
+                                resolve(retRows);
+                            }
+                            else {
+                                retRows = rows;
+                                resolve(retRows);
+                            }
+                        });
+                    });
+                }
+            });
+        }
+        deleteDB(dbName) {
+            return new Promise(resolve => {
+                let ret = false;
+                const dbPath = this._utils.getDBPath(dbName);
+                if (dbPath.length > 0) {
+                    try {
+                        this.NodeFs.unlinkSync(dbPath);
+                        //file removed
+                        ret = true;
+                    }
+                    catch (e) {
+                        console.log('Error: in deleteDB');
+                    }
+                }
+                resolve(ret);
+            });
+        }
+        importJson(jsonData) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let changes = -1;
+                // create the database schema
+                changes = yield this.createDatabaseSchema(jsonData);
+                if (changes != -1) {
+                    // create the tables data
+                    changes = yield this.createTableData(jsonData);
+                }
+                resolve({ changes: changes });
+            }));
+        }
+        exportJson(mode) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retJson = {};
+                let success = false;
+                retJson.database = this._databaseName.slice(0, -9);
+                retJson.version = this._databaseVersion;
+                retJson.encrypted = false;
+                retJson.mode = mode;
+                success = yield this.createJsonTables(retJson);
+                if (success) {
+                    const isValid = isJsonSQLite(retJson);
+                    if (isValid) {
+                        resolve(retJson);
+                    }
+                    else {
+                        resolve({});
+                    }
+                }
+                else {
+                    resolve({});
+                }
+            }));
+        }
+        createDatabaseSchema(jsonData) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let changes = -1;
+                let isSchema = false;
+                let isIndexes = false;
+                const version = jsonData.version;
+                // set Foreign Keys PRAGMA
+                let pragmas = 'PRAGMA foreign_keys = ON;';
+                let pchanges = yield this.exec(pragmas);
+                if (pchanges === -1)
+                    resolve(-1);
+                // DROP ALL when mode="full"
+                if (jsonData.mode === 'full') {
+                    // set User Version PRAGMA
+                    let pragmas = `PRAGMA user_version = ${version};`;
+                    pchanges = yield this.exec(pragmas);
+                    if (pchanges === -1)
+                        resolve(-1);
+                    yield this.dropAll();
+                }
+                // create the database schema
+                let statements = [];
+                statements.push('BEGIN TRANSACTION;');
+                for (let i = 0; i < jsonData.tables.length; i++) {
+                    if (jsonData.tables[i].schema != null &&
+                        jsonData.tables[i].schema.length >= 1) {
+                        isSchema = true;
+                        // create table
+                        statements.push(`CREATE TABLE IF NOT EXISTS ${jsonData.tables[i].name} (`);
+                        for (let j = 0; j < jsonData.tables[i].schema.length; j++) {
+                            if (j === jsonData.tables[i].schema.length - 1) {
+                                if (jsonData.tables[i].schema[j].column) {
+                                    statements.push(`${jsonData.tables[i].schema[j].column} ${jsonData.tables[i].schema[j].value}`);
+                                }
+                                else if (jsonData.tables[i].schema[j].foreignkey) {
+                                    statements.push(`FOREIGN KEY (${jsonData.tables[i].schema[j].foreignkey}) ${jsonData.tables[i].schema[j].value}`);
+                                }
+                            }
+                            else {
+                                if (jsonData.tables[i].schema[j].column) {
+                                    statements.push(`${jsonData.tables[i].schema[j].column} ${jsonData.tables[i].schema[j].value},`);
+                                }
+                                else if (jsonData.tables[i].schema[j].foreignkey) {
+                                    statements.push(`FOREIGN KEY (${jsonData.tables[i].schema[j].foreignkey}) ${jsonData.tables[i].schema[j].value},`);
+                                }
+                            }
+                        }
+                        statements.push(');');
+                        // create trigger last_modified associated with the table
+                        let trig = 'CREATE TRIGGER IF NOT EXISTS ';
+                        trig += `${jsonData.tables[i].name}_trigger_last_modified `;
+                        trig += `AFTER UPDATE ON ${jsonData.tables[i].name} `;
+                        trig += 'FOR EACH ROW WHEN NEW.last_modified <= ';
+                        trig += 'OLD.last_modified BEGIN UPDATE ';
+                        trig += `${jsonData.tables[i].name} SET last_modified = `;
+                        trig += "(strftime('%s','now')) WHERE id=OLD.id; END;";
+                        statements.push(trig);
+                    }
+                    if (jsonData.tables[i].indexes != null &&
+                        jsonData.tables[i].indexes.length >= 1) {
+                        isIndexes = true;
+                        for (let j = 0; j < jsonData.tables[i].indexes.length; j++) {
+                            statements.push(`CREATE INDEX IF NOT EXISTS ${jsonData.tables[i].indexes[j].name} ON ${jsonData.tables[i].name} (${jsonData.tables[i].indexes[j].column});`);
+                        }
+                    }
+                }
+                if (statements.length > 1) {
+                    statements.push('COMMIT TRANSACTION;');
+                    const schemaStmt = statements.join('\n');
+                    changes = yield this.exec(schemaStmt);
+                }
+                else if (!isSchema && !isIndexes) {
+                    changes = 0;
+                }
+                resolve(changes);
+            }));
+        }
+        createTableData(jsonData) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let success = true;
+                let changes = -1;
+                let isValue = false;
+                const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('createTableData: Error Database connection failed');
+                    resolve(changes);
+                }
+                let retB = yield this.beginTransaction(db);
+                if (!retB) {
+                    db.close();
+                    resolve(changes);
+                }
+                // Create the table's data
+                for (let i = 0; i < jsonData.tables.length; i++) {
+                    if (jsonData.tables[i].values != null &&
+                        jsonData.tables[i].values.length >= 1) {
+                        // Check if the table exists
+                        const tableExists = yield this.isTableExists(db, jsonData.tables[i].name);
+                        if (!tableExists) {
+                            console.log(`Error: Table ${jsonData.tables[i].name} does not exist`);
+                            success = false;
+                            break;
+                        }
+                        else {
+                            // Get the column names and types
+                            const tableNamesTypes = yield this.getTableColumnNamesTypes(db, jsonData.tables[i].name);
+                            const tableColumnTypes = tableNamesTypes.types;
+                            const tableColumnNames = tableNamesTypes.names;
+                            if (tableColumnTypes.length === 0) {
+                                console.log(`Error: Table ${jsonData.tables[i].name} ` +
+                                    'info does not exist');
+                                success = false;
+                                break;
+                            }
+                            else {
+                                isValue = true;
+                                // Loop on Table Values
+                                for (let j = 0; j < jsonData.tables[i].values.length; j++) {
+                                    // Check the row number of columns
+                                    if (jsonData.tables[i].values[j].length !=
+                                        tableColumnTypes.length) {
+                                        console.log(`Error: Table ${jsonData.tables[i].name} ` +
+                                            `values row ${j} not correct length`);
+                                        success = false;
+                                        break;
+                                    }
+                                    // Check the column's type before proceeding
+                                    const isColumnTypes = yield this.checkColumnTypes(tableColumnTypes, jsonData.tables[i].values[j]);
+                                    if (!isColumnTypes) {
+                                        console.log(`Error: Table ${jsonData.tables[i].name} ` +
+                                            `values row ${j} not correct types`);
+                                        success = false;
+                                        break;
+                                    }
+                                    const retisIdExists = yield this.isIdExists(db, jsonData.tables[i].name, tableColumnNames[0], jsonData.tables[i].values[j][0]);
+                                    let stmt;
+                                    if (jsonData.mode === 'full' ||
+                                        (jsonData.mode === 'partial' && !retisIdExists)) {
+                                        // Insert
+                                        const nameString = tableColumnNames.join();
+                                        const questionMarkString = yield this.createQuestionMarkString(tableColumnNames.length);
+                                        stmt =
+                                            `INSERT INTO ${jsonData.tables[i].name} (` +
+                                                `${nameString}) VALUES (`;
+                                        stmt += `${questionMarkString});`;
+                                    }
+                                    else {
+                                        // Update
+                                        const setString = yield this.setNameForUpdate(tableColumnNames);
+                                        if (setString.length === 0) {
+                                            console.log(`Error: Table ${jsonData.tables[i].name} ` +
+                                                `values row ${j} not set to String`);
+                                            success = false;
+                                            break;
+                                        }
+                                        stmt =
+                                            `UPDATE ${jsonData.tables[i].name} SET ` +
+                                                `${setString} WHERE ${tableColumnNames[0]} = ` +
+                                                `${jsonData.tables[i].values[j][0]};`;
+                                    }
+                                    const lastId = yield this.prepare(db, stmt, jsonData.tables[i].values[j]);
+                                    if (lastId === -1) {
+                                        console.log('run: Error return lastId= -1');
+                                        success = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (success) {
+                    retB = yield this.endTransaction(db);
+                    if (!retB) {
+                        db.close();
+                        resolve(changes);
+                    }
+                    changes = yield this.dbChanges(db);
+                }
+                else {
+                    if (!isValue)
+                        changes = 0;
+                }
+                db.close();
+                resolve(changes);
+            }));
+        }
+        isTableExists(db, tableName) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                // Check if the table exists
+                let ret = false;
+                const query = `SELECT name FROM sqlite_master WHERE ` +
+                    `type='table' AND name='${tableName}';`;
+                const resQuery = yield this.select(db, query, []);
+                if (resQuery.length > 0)
+                    ret = true;
+                resolve(ret);
+            }));
+        }
+        getTableColumnNamesTypes(db, tableName) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retTypes = [];
+                let retNames = [];
+                const query = `PRAGMA table_info(${tableName});`;
+                const resQuery = yield this.select(db, query, []);
+                if (resQuery.length > 0) {
+                    for (let i = 0; i < resQuery.length; i++) {
+                        retNames.push(resQuery[i].name);
+                        retTypes.push(resQuery[i].type);
+                    }
+                }
+                resolve({ names: retNames, types: retTypes });
+            }));
+        }
+        createQuestionMarkString(length) {
+            return new Promise(resolve => {
+                var retString = '';
+                for (let i = 0; i < length; i++) {
+                    retString += '?,';
+                }
+                if (retString.length > 1)
+                    retString = retString.slice(0, -1);
+                resolve(retString);
+            });
+        }
+        setNameForUpdate(names) {
+            return new Promise(resolve => {
+                var retString = '';
+                for (let i = 0; i < names.length; i++) {
+                    retString += `${names[i]} = ? ,`;
+                }
+                if (retString.length > 1)
+                    retString = retString.slice(0, -1);
+                resolve(retString);
+            });
+        }
+        checkColumnTypes(tableTypes, rowValues) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let isType = true;
+                for (let i = 0; i < rowValues.length; i++) {
+                    if (rowValues[i].toString().toUpperCase() != 'NULL') {
+                        isType = yield this.isType(tableTypes[i], rowValues[i]);
+                        if (!isType)
+                            break;
+                    }
+                }
+                resolve(isType);
+            }));
+        }
+        isType(type, value) {
+            return new Promise(resolve => {
+                let ret = false;
+                if (type === 'NULL' && typeof value === 'object')
+                    ret = true;
+                if (type === 'TEXT' && typeof value === 'string')
+                    ret = true;
+                if (type === 'INTEGER' && typeof value === 'number')
+                    ret = true;
+                if (type === 'REAL' && typeof value === 'number')
+                    ret = true;
+                if (type === 'BLOB' && typeof value === 'string')
+                    ret = true;
+                resolve(ret);
+            });
+        }
+        isIdExists(db, dbName, firstColumnName, key) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let ret = false;
+                const query = `SELECT ${firstColumnName} FROM ` +
+                    `${dbName} WHERE ${firstColumnName} = ${key};`;
+                const resQuery = yield this.select(db, query, []);
+                if (resQuery.length === 1)
+                    ret = true;
+                resolve(ret);
+            }));
+        }
+        dbChanges(db) {
+            return new Promise(resolve => {
+                const SELECT_CHANGE = 'SELECT total_changes()';
+                let ret = -1;
+                db.get(SELECT_CHANGE, (err, row) => {
+                    // process the row here
+                    if (err) {
+                        console.log(`"Error: dbChanges failed: " : ${err.message}`);
+                        resolve(ret);
+                    }
+                    else {
+                        const key = Object.keys(row)[0];
+                        const changes = row[key];
+                        resolve(changes);
+                    }
+                });
+            });
+        }
+        getLastId(db) {
+            return new Promise(resolve => {
+                const SELECT_LAST_ID = 'SELECT last_insert_rowid()';
+                let ret = -1;
+                db.get(SELECT_LAST_ID, (err, row) => {
+                    // process the row here
+                    if (err) {
+                        console.log(`"Error: getLastId failed: " : ${err.message}`);
+                        resolve(ret);
+                    }
+                    else {
+                        const key = Object.keys(row)[0];
+                        const lastId = row[key];
+                        resolve(lastId);
+                    }
+                });
+            });
+        }
+        beginTransaction(db) {
+            return new Promise(resolve => {
+                const stmt = 'BEGIN TRANSACTION';
+                db.exec(stmt, (err) => {
+                    if (err) {
+                        console.log(`exec: Error Begin Transaction failed : ` + `${err.message}`);
+                        resolve(false);
+                    }
+                    else {
+                        resolve(true);
+                    }
+                });
+            });
+        }
+        endTransaction(db) {
+            return new Promise(resolve => {
+                const stmt = 'COMMIT TRANSACTION';
+                db.exec(stmt, (err) => {
+                    if (err) {
+                        console.log(`exec: Error End Transaction failed : ` + `${err.message}`);
+                        resolve(false);
+                    }
+                    else {
+                        resolve(true);
+                    }
+                });
+            });
+        }
+        createJsonTables(retJson) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let success = true;
+                const databaseName = `${retJson.database}SQLite.db`;
+                const db = this._utils.connection(databaseName, false /*,this._secret*/);
+                if (db === null) {
+                    this.isOpen = false;
+                    console.log('createJsonTables: ' + 'Error Database connection failed');
+                    resolve(false);
+                }
+                // get the table's names
+                let stmt = "SELECT name,sql FROM sqlite_master WHERE type = 'table' ";
+                stmt += "AND name NOT LIKE 'sqlite_%' ";
+                stmt += "AND name NOT LIKE 'sync_table';";
+                let tables = yield this.select(db, stmt, []);
+                if (tables.length === 0) {
+                    console.log('createJsonTables: ' + "Error get table's names failed");
+                    resolve(false);
+                }
+                let modTables = {};
+                let syncDate = 0;
+                if (retJson.mode === 'partial') {
+                    syncDate = yield this.getSyncDate(db);
+                    if (syncDate != -1) {
+                        // take the tables which have been modified or
+                        // created since last sync
+                        modTables = yield this.getTableModified(db, tables, syncDate);
+                    }
+                    else {
+                        console.log('createJsonTables: ' + 'Error did not find a sync_date');
+                        resolve(false);
+                    }
+                }
+                let jsonTables = [];
+                for (let i = 0; i < tables.length; i++) {
+                    if (retJson.mode === 'partial' &&
+                        (Object.keys(modTables).length === 0 ||
+                            Object.keys(modTables).indexOf(tables[i].name) === -1 ||
+                            modTables[tables[i].name] == 'No')) {
+                        continue;
+                    }
+                    let table = {};
+                    let isSchema = false;
+                    let isIndexes = false;
+                    let isValues = false;
+                    table.name = tables[i].name;
+                    if (retJson.mode === 'full' ||
+                        (retJson.mode === 'partial' && modTables[table.name] === 'Create')) {
+                        // create the schema
+                        let schema = [];
+                        // take the substring between parenthesis
+                        let openPar = tables[i].sql.indexOf('(');
+                        let closePar = tables[i].sql.lastIndexOf(')');
+                        let sstr = tables[i].sql.substring(openPar + 1, closePar);
+                        let sch = sstr.replace(/\n/g, '').split(',');
+                        for (let j = 0; j < sch.length; j++) {
+                            const rstr = sch[j].trim();
+                            let idx = rstr.indexOf(' ');
+                            //find the index of the first
+                            let row = [rstr.slice(0, idx), rstr.slice(idx + 1)];
+                            if (row.length != 2)
+                                resolve(false);
+                            if (row[0].toUpperCase() != 'FOREIGN') {
+                                schema.push({ column: row[0], value: row[1] });
+                            }
+                            else {
+                                const oPar = rstr.indexOf('(');
+                                const cPar = rstr.indexOf(')');
+                                row = [rstr.slice(oPar + 1, cPar), rstr.slice(cPar + 2)];
+                                if (row.length != 2)
+                                    resolve(false);
+                                schema.push({ foreignkey: row[0], value: row[1] });
+                            }
+                        }
+                        table.schema = schema;
+                        isSchema = true;
+                        // create the indexes
+                        stmt = 'SELECT name,tbl_name,sql FROM sqlite_master WHERE ';
+                        stmt += `type = 'index' AND tbl_name = '${table.name}' `;
+                        stmt += `AND sql NOTNULL;`;
+                        const retIndexes = yield this.select(db, stmt, []);
+                        if (retIndexes.length > 0) {
+                            let indexes = [];
+                            for (let j = 0; j < retIndexes.length; j++) {
+                                const keys = Object.keys(retIndexes[j]);
+                                if (keys.length === 3) {
+                                    if (retIndexes[j]['tbl_name'] === table.name) {
+                                        const sql = retIndexes[j]['sql'];
+                                        const oPar = sql.lastIndexOf('(');
+                                        const cPar = sql.lastIndexOf(')');
+                                        indexes.push({
+                                            name: retIndexes[j]['name'],
+                                            column: sql.slice(oPar + 1, cPar),
+                                        });
+                                    }
+                                    else {
+                                        console.log('createJsonTables: ' +
+                                            "Error indexes table name doesn't match");
+                                        success = false;
+                                        break;
+                                    }
+                                }
+                                else {
+                                    console.log('createJsonTables: ' + 'Error in creating indexes');
+                                    success = false;
+                                    break;
+                                }
+                            }
+                            table.indexes = indexes;
+                            isIndexes = true;
+                        }
+                    }
+                    const tableNamesTypes = yield this.getTableColumnNamesTypes(db, table.name);
+                    const rowNames = tableNamesTypes.names;
+                    // create the data
+                    if (retJson.mode === 'full' ||
+                        (retJson.mode === 'partial' && modTables[table.name] === 'Create')) {
+                        stmt = `SELECT * FROM ${table.name};`;
+                    }
+                    else {
+                        if (syncDate != 0) {
+                            stmt =
+                                `SELECT * FROM ${table.name} ` +
+                                    `WHERE last_modified > ${syncDate};`;
+                        }
+                        else {
+                            stmt = `SELECT * FROM ${table.name};`;
+                        }
+                    }
+                    const retValues = yield this.select(db, stmt, []);
+                    let values = [];
+                    for (let j = 0; j < retValues.length; j++) {
+                        let row = [];
+                        for (let k = 0; k < rowNames.length; k++) {
+                            if (retValues[j][rowNames[k]] != null) {
+                                row.push(retValues[j][rowNames[k]]);
+                            }
+                            else {
+                                row.push('NULL');
+                            }
+                        }
+                        values.push(row);
+                    }
+                    table.values = values;
+                    isValues = true;
+                    if (Object.keys(table).length < 1 ||
+                        !isTable(table) ||
+                        (!isSchema && !isIndexes && !isValues)) {
+                        console.log('createJsonTables: ' + 'Error table is not a jsonTable');
+                        success = false;
+                        break;
+                    }
+                    jsonTables.push(table);
+                }
+                if (!success) {
+                    retJson = {};
+                }
+                else {
+                    retJson.tables = jsonTables;
+                }
+                resolve(success);
+            }));
+        }
+        getTableModified(db, tables, syncDate) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let retModified = {};
+                for (let i = 0; i < tables.length; i++) {
+                    let mode;
+                    // get total count of the table
+                    let stmt = `SELECT count(*) FROM ${tables[i].name};`;
+                    let retQuery = yield this.select(db, stmt, []);
+                    if (retQuery.length != 1)
+                        break;
+                    const totalCount = retQuery[0]['count(*)'];
+                    // get total count of modified since last sync
+                    stmt =
+                        `SELECT count(*) FROM ${tables[i].name} ` +
+                            `WHERE last_modified > ${syncDate};`;
+                    retQuery = yield this.select(db, stmt, []);
+                    if (retQuery.length != 1)
+                        break;
+                    const totalModifiedCount = retQuery[0]['count(*)'];
+                    if (totalModifiedCount === 0) {
+                        mode = 'No';
+                    }
+                    else if (totalCount === totalModifiedCount) {
+                        mode = 'Create';
+                    }
+                    else {
+                        mode = 'Modified';
+                    }
+                    const key = tables[i].name;
+                    retModified[key] = mode;
+                    if (i === tables.length - 1)
+                        resolve(retModified);
+                }
+                resolve(retModified);
+            }));
+        }
+        getSyncDate(db) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                let ret = -1;
+                // get the last sync date
+                let stmt = `SELECT sync_date FROM sync_table;`;
+                let retQuery = yield this.select(db, stmt, []);
+                if (retQuery.length === 1) {
+                    const syncDate = retQuery[0]['sync_date'];
+                    if (syncDate > 0)
+                        ret = syncDate;
+                }
+                resolve(ret);
+            }));
+        }
+        getDBVersion(db) {
+            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                const query = `PRAGMA user_version;`;
+                const resQuery = yield this.select(db, query, []);
+                if (resQuery.length > 0) {
+                    return resolve(resQuery[0].user_version);
+                }
+                else {
+                    return resolve(-1);
+                }
+            }));
+        }
+        updateDatabaseVersion(db, newVersion) {
+            return __awaiter(this, void 0, void 0, function* () {
+                let pragmas = `
+      PRAGMA user_version = ${newVersion};
+    `;
+                const pchanges = yield this.execute(db, pragmas);
+                return pchanges;
+            });
+        }
+        onUpgrade(dbName, db, currentVersion, targetVersion) {
+            return __awaiter(this, void 0, void 0, function* () {
+                /**
+                 * When upgrade statements for current database are missing
+                 */
+                if (!this._upgradeStatements[dbName]) {
+                    console.log(`Error PRAGMA user_version failed : Version mismatch! Expec
+        ted Version ${targetVersion} found Version ${currentVersion}. Mi
+        ssing Upgrade Statements for Database '${dbName}' Vers
+        ion ${currentVersion}.`);
+                    return false;
+                }
+                else if (!this._upgradeStatements[dbName][currentVersion]) {
+                    /**
+                     * When upgrade statements for current version are missing
+                     */
+                    console.log(`Error PRAGMA user_version failed : Version mismatch! Expected V
+        ersion ${targetVersion} found Version ${currentVersion}. Miss
+        ing Upgrade Statements for Database '${dbName}' Versi
+        on ${currentVersion}.`);
+                    return false;
+                }
+                const upgrade = this._upgradeStatements[dbName][currentVersion];
+                /**
+                 * When the version after an upgrade would be greater
+                 * than the targeted version
+                 */
+                if (targetVersion < upgrade.toVersion) {
+                    console.log(`Error PRAGMA user_version failed : Version mismatch! Expect
+        ed Version ${targetVersion} found Version ${currentVersion}. Up
+        grade Statement would upgrade to version ${upgrade.toVersion}, b
+        ut target version is ${targetVersion}.`);
+                    return false;
+                }
+                // set PRAGMA
+                let pragmas = `
+      PRAGMA foreign_keys = OFF;            
+    `;
+                let pchanges = yield this.execute(db, pragmas);
+                if (pchanges === -1) {
+                    console.log('onUpgrade: Error in setting ' + 'PRAGMA foreign_keys = OFF');
+                    return false;
+                }
+                // Here we assume all the tables schema are given in
+                // the upgrade statement
+                if (upgrade.statement) {
+                    // -> backup all existing tables  "tableName" in "temp_tableName"
+                    let retB = yield this.backupTables(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in backuping existing tables');
+                        return false;
+                    }
+                    // -> Drop all Indexes
+                    retB = yield this.dropIndexes(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in dropping indexes');
+                        return false;
+                    }
+                    // -> Drop all Triggers
+                    retB = yield this.dropTriggers(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in dropping triggers');
+                        return false;
+                    }
+                    // -> Create new tables from upgrade.statement
+                    const result = yield this.execute(db, upgrade.statement);
+                    if (result.changes < 0) {
+                        console.log(`onUpgrade Error in creating tables `);
+                        return false;
+                    }
+                    // -> Create the list of table's common fields
+                    retB = yield this.findCommonColumns(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in findCommonColumns');
+                        return false;
+                    }
+                    // -> Update the new table's data from old table's data
+                    retB = yield this.updateNewTablesData(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in updateNewTablesData');
+                        return false;
+                    }
+                    // -> Drop _temp_tables
+                    retB = yield this.dropTempTables(db);
+                    if (!retB) {
+                        console.log('onUpgrade Error in dropTempTables');
+                        return false;
+                    }
+                    // -> Do some cleanup
+                    this._alterTables = {};
+                    this._commonColumns = {};
+                    // here we assume that the Set contains only
+                    //  - the data for new tables as INSERT statements
+                    //  - the data for new columns in existing tables
+                    //    as UPDATE statements
+                    if (upgrade.set) {
+                        // -> load new data
+                        const result = yield this.executeSet(db, upgrade.set);
+                        if (result.changes < 0) {
+                            console.log('onUpgrade Error executeSet Failed');
+                            return false;
+                        }
+                    }
+                    // -> update database version
+                    yield this.updateDatabaseVersion(db, upgrade.toVersion);
+                    // -> update syncDate if any
+                    const isExists = yield this.isTableExists(db, 'sync_table');
+                    if (isExists) {
+                        const sDate = Math.round(new Date().getTime() / 1000);
+                        let stmt = `UPDATE sync_table SET sync_date = ${sDate} `;
+                        stmt += `WHERE id = 1;`;
+                        const retRes = yield this.execute(db, stmt);
+                        if (retRes.changes === -1) {
+                            let message = 'onUpgrade: Update sync_date failed ';
+                            console.log(message);
+                            return false;
+                        }
+                    }
+                }
+                else {
+                    let message = 'onUpgrade: No statement given in ';
+                    message += 'upgradeStatements object';
+                    console.log(message);
+                    return false;
+                }
+                // set PRAGMA
+                pragmas = `
+      PRAGMA foreign_keys = ON;            
+    `;
+                pchanges = yield this.execute(db, pragmas);
+                if (pchanges === -1) {
+                    console.log('onUpgrade: Error in setting ' + 'PRAGMA foreign_keys = ON');
+                    return false;
+                }
+                return true;
+            });
+        }
+        dropTempTables(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    const tempTables = Object.keys(this._alterTables);
+                    const statements = [];
+                    for (let i = 0; i < tempTables.length; i++) {
+                        const stmt = `DROP TABLE IF EXISTS _temp_${tempTables[i]};`;
+                        statements.push(stmt);
+                    }
+                    const pchanges = yield this.execute(db, statements.join('\n'));
+                    if (pchanges.changes === -1) {
+                        console.log('dropTempTables: Error execute failed');
+                        resolve(false);
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        backupTables(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    const tables = yield this.getTablesNames(db);
+                    if (tables.length === 0) {
+                        console.log("backupTables: Error get table's names failed");
+                        resolve(false);
+                    }
+                    for (let i = 0; i < tables.length; i++) {
+                        const retB = yield this.backupTable(db, tables[i].name);
+                        if (!retB) {
+                            console.log('backupTables: Error backupTable failed');
+                            resolve(false);
+                        }
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        backupTable(db, tableName) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    let retB = yield this.beginTransaction(db);
+                    if (!retB) {
+                        console.log('backupTable: Error beginTransaction failed');
+                        resolve(false);
+                    }
+                    // get the column's name
+                    const tableNamesTypes = yield this.getTableColumnNamesTypes(db, tableName);
+                    this._alterTables[tableName] = tableNamesTypes.names;
+                    // prefix the table with _temp_
+                    let stmt = `ALTER TABLE ${tableName} RENAME TO _temp_${tableName};`;
+                    const pchanges = yield this.execute(db, stmt);
+                    if (pchanges.changes === -1) {
+                        console.log('backupTable: Error execute failed');
+                        resolve(false);
+                    }
+                    retB = yield this.endTransaction(db);
+                    if (!retB) {
+                        console.log('backupTable: Error endTransaction failed');
+                        resolve(false);
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        dropAll() {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // Drop All Tables
+                    const db = this._utils.connection(this._databaseName, false /*,this._secret*/);
+                    if (db === null) {
+                        this.isOpen = false;
+                        console.log('dropAll: Error Database connection failed');
+                        resolve(false);
+                    }
+                    let retB = yield this.dropTables(db);
+                    if (!retB)
+                        resolve(false);
+                    // Drop All Indexes
+                    retB = yield this.dropIndexes(db);
+                    if (!retB)
+                        resolve(false);
+                    // Drop All Triggers
+                    retB = yield this.dropTriggers(db);
+                    if (!retB)
+                        resolve(false);
+                    // VACCUUM
+                    yield this.execute(db, 'VACUUM;');
+                    db.close();
+                    return true;
+                }));
+            });
+        }
+        dropTables(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // get the table's names
+                    const tables = yield this.getTablesNames(db);
+                    let statements = [];
+                    for (let i = 0; i < tables.length; i++) {
+                        const stmt = `DROP TABLE IF EXISTS ${tables[i].name};`;
+                        statements.push(stmt);
+                    }
+                    if (statements.length > 0) {
+                        const pchanges = yield this.execute(db, statements.join('\n'));
+                        if (pchanges.changes === -1) {
+                            console.log('dropTables: Error execute failed');
+                            resolve(false);
+                        }
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        dropIndexes(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // get the index's names
+                    let stmt = "SELECT name FROM sqlite_master WHERE type = 'index' ";
+                    stmt += "AND name NOT LIKE 'sqlite_%';";
+                    let indexes = yield this.select(db, stmt, []);
+                    if (indexes.length === 0) {
+                        console.log("dropIndexes: Error get index's names failed");
+                        resolve(false);
+                    }
+                    let statements = [];
+                    for (let i = 0; i < indexes.length; i++) {
+                        const stmt = `DROP INDEX IF EXISTS ${indexes[i].name};`;
+                        statements.push(stmt);
+                    }
+                    if (statements.length > 0) {
+                        const pchanges = yield this.execute(db, statements.join('\n'));
+                        if (pchanges.changes === -1) {
+                            console.log('dropIndexes: Error execute failed');
+                            resolve(false);
+                        }
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        dropTriggers(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // get the index's names
+                    let stmt = "SELECT name FROM sqlite_master WHERE type = 'trigger';";
+                    let triggers = yield this.select(db, stmt, []);
+                    if (triggers.length === 0) {
+                        console.log("dropTriggers: Error get index's names failed");
+                        resolve(false);
+                    }
+                    let statements = [];
+                    for (let i = 0; i < triggers.length; i++) {
+                        let stmt = 'DROP TRIGGER IF EXISTS ';
+                        stmt += `${triggers[i].name};`;
+                        statements.push(stmt);
+                    }
+                    if (statements.length > 0) {
+                        const pchanges = yield this.execute(db, statements.join('\n'));
+                        if (pchanges.changes === -1) {
+                            console.log('dropTriggers: Error execute failed');
+                            resolve(false);
+                        }
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        findCommonColumns(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // Get new table list
+                    const tables = yield this.getTablesNames(db);
+                    if (tables.length === 0) {
+                        console.log("findCommonColumns: Error get table's names failed");
+                        resolve(false);
+                    }
+                    for (let i = 0; i < tables.length; i++) {
+                        // get the column's name
+                        const tableNamesTypes = yield this.getTableColumnNamesTypes(db, tables[i].name);
+                        // find the common columns
+                        const keys = Object.keys(this._alterTables);
+                        if (keys.includes(tables[i].name)) {
+                            this._commonColumns[tables[i].name] = this.arraysIntersection(this._alterTables[tables[i].name], tableNamesTypes.names);
+                        }
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        getTablesNames(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    // get the table's names
+                    let stmt = "SELECT name FROM sqlite_master WHERE type = 'table' ";
+                    stmt += "AND name NOT LIKE 'sync_table' ";
+                    stmt += "AND name NOT LIKE '_temp_%' ";
+                    stmt += "AND name NOT LIKE 'sqlite_%';";
+                    const tables = yield this.select(db, stmt, []);
+                    resolve(tables);
+                }));
+            });
+        }
+        updateNewTablesData(db) {
+            return __awaiter(this, void 0, void 0, function* () {
+                return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
+                    let retB = yield this.beginTransaction(db);
+                    if (!retB) {
+                        console.log('updateNewTablesData: ' + 'Error beginTransaction failed');
+                        resolve(false);
+                    }
+                    let statements = [];
+                    const keys = Object.keys(this._commonColumns);
+                    keys.forEach(key => {
+                        const columns = this._commonColumns[key].join(',');
+                        let stmt = `INSERT INTO ${key} (${columns}) SELECT `;
+                        stmt += `${columns} FROM _temp_${key};`;
+                        statements.push(stmt);
+                    });
+                    const pchanges = yield this.execute(db, statements.join('\n'));
+                    if (pchanges.changes === -1) {
+                        console.log('updateNewTablesData: Error execute failed');
+                        resolve(false);
+                    }
+                    retB = yield this.endTransaction(db);
+                    if (!retB) {
+                        console.log('updateNewTablesData: ' + 'Error endTransaction failed');
+                        resolve(false);
+                    }
+                    resolve(true);
+                }));
+            });
+        }
+        arraysIntersection(a1, a2) {
+            return a1.filter((n) => {
+                return a2.indexOf(n) !== -1;
+            });
+        }
+        backupDB(dbName) {
+            return new Promise(resolve => {
+                const dbPath = this._utils.getDBPath(dbName);
+                const dbBackupPath = this._utils.getDBPath(`backup-${dbName}`);
+                if (dbPath.length > 0 && dbBackupPath.length > 0) {
+                    this.NodeFs.copyFile(dbPath, dbBackupPath, this.NodeFs.constants.COPYFILE_EXCL, (err) => {
                         if (err) {
-                            console.log('Data DELETE: ', err.message);
-                            db.close();
+                            console.log('Error: in backupDB Found:', err);
                             resolve(false);
                         }
                         else {
-                            db.close();
                             resolve(true);
                         }
                     });
                 }
                 else {
-                    console.log('Error:REMOVE key does not exist');
+                    console.log('Error: in backupDB path & backuppath not correct');
                     resolve(false);
                 }
-            }));
+            });
         }
-        // remove all keys
-        clear() {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getWritableDatabase(this._dbName /*,this._secret*/);
-                const DATA_DELETE = `DELETE FROM "${this._tableName}"`;
-                db.run(DATA_DELETE, [], (err) => {
-                    if (err) {
-                        console.log('Data CLEAR: ', err.message);
-                        db.close();
+        restoreDB(dbName) {
+            return new Promise(resolve => {
+                const dbPath = this._utils.getDBPath(dbName);
+                const dbBackupPath = this._utils.getDBPath(`backup-${dbName}`);
+                if (dbPath.length > 0 && dbBackupPath.length > 0) {
+                    const isBackup = this.isDB(dbBackupPath);
+                    if (!isBackup) {
+                        console.log('Error: in restoreDB no backup database');
                         resolve(false);
                     }
-                    else {
-                        // set back the key primary index to 0
-                        const DATA_UPDATE = `UPDATE SQLITE_SEQUENCE 
-                    SET SEQ = ? `;
-                        db.run(DATA_UPDATE, 0, (err) => {
-                            if (err) {
-                                console.log('Data UPDATE SQLITE_SEQUENCE: ', err.message);
-                                db.close();
-                                resolve(false);
-                            }
-                            else {
-                                db.close();
-                                resolve(true);
-                            }
-                        });
-                    }
-                });
-            }));
-        }
-        keys() {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getReadableDatabase(this._dbName /*,this._secret*/);
-                const DATA_SELECT_KEYS = `SELECT "${COL_NAME}" FROM "${this._tableName}"`;
-                db.all(DATA_SELECT_KEYS, (err, rows) => {
-                    if (err) {
-                        db.close();
-                        resolve([]);
-                    }
-                    else {
-                        let arKeys = [];
-                        for (let i = 0; i < rows.length; i++) {
-                            arKeys = [...arKeys, rows[i].name];
-                            if (i === rows.length - 1) {
-                                db.close();
-                                resolve(arKeys);
-                            }
+                    const isFile = this.isDB(dbPath);
+                    if (isFile) {
+                        try {
+                            this.NodeFs.unlinkSync(dbPath);
+                            //file removed
+                        }
+                        catch (e) {
+                            console.log('Error: in restoreDB delete database failed');
+                            resolve(false);
                         }
                     }
-                });
-            }));
-        }
-        values() {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getReadableDatabase(this._dbName /*,this._secret*/);
-                const DATA_SELECT_VALUES = `SELECT "${COL_VALUE}" FROM "${this._tableName}"`;
-                db.all(DATA_SELECT_VALUES, (err, rows) => {
-                    if (err) {
-                        db.close();
-                        resolve([]);
-                    }
-                    else {
-                        let arValues = [];
-                        for (let i = 0; i < rows.length; i++) {
-                            arValues = [...arValues, rows[i].value];
-                            if (i === rows.length - 1) {
-                                db.close();
-                                resolve(arValues);
-                            }
+                    this.NodeFs.copyFile(dbBackupPath, dbPath, this.NodeFs.constants.COPYFILE_EXCL, (err) => {
+                        if (err) {
+                            console.log('Error: in restoreDB copyfile failed:', err);
+                            resolve(false);
                         }
-                    }
-                });
-            }));
-        }
-        keysvalues() {
-            return new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
-                const db = yield this._utils.getReadableDatabase(this._dbName /*,this._secret*/);
-                const DATA_SELECT_KEYSVALUES = `SELECT "${COL_NAME}" , "${COL_VALUE}" FROM "${this._tableName}"`;
-                db.all(DATA_SELECT_KEYSVALUES, (err, rows) => {
-                    if (err) {
-                        db.close();
-                        resolve([]);
-                    }
-                    else {
-                        db.close();
-                        resolve(rows);
-                    }
-                });
-            }));
-        }
-        deleteStore(dbName) {
-            return new Promise(resolve => {
-                let ret = false;
-                const dbPath = this.Path.join(this._utils.pathDB, dbName);
-                try {
-                    this.NodeFs.unlinkSync(dbPath);
-                    //file removed
-                    ret = true;
+                        else {
+                            resolve(true);
+                        }
+                    });
                 }
-                catch (e) {
-                    console.log('Error: in deleteStore');
+                else {
+                    console.log('Error: in backupDB path & backuppath not correct');
+                    resolve(false);
                 }
-                resolve(ret);
             });
+        }
+        isDB(dbPath) {
+            try {
+                if (this.NodeFs.existsSync(dbPath)) {
+                    //file exists
+                    return true;
+                }
+            }
+            catch (err) {
+                console.error(err);
+                return false;
+            }
         }
     }
 
     const { remote } = require('electron');
-    class CapacitorDataStorageSqliteElectronWeb extends WebPlugin {
+    class CapacitorSQLiteElectronWeb extends WebPlugin {
         constructor() {
             super({
-                name: 'CapacitorDataStorageSqlite',
+                name: 'CapacitorSQLite',
                 platforms: ['electron'],
             });
+            this.NodeFs = null;
             this.RemoteRef = null;
+            this.versionUpgrades = {};
+            console.log('CapacitorSQLite Electron');
             this.RemoteRef = remote;
-            this.mDb = new StorageDatabaseHelper();
+            this.NodeFs = require('fs');
         }
         echo(options) {
             return __awaiter(this, void 0, void 0, function* () {
-                console.log('ECHO in Electron Plugin', options);
+                console.log('ECHO in CapacitorSQLiteElectronWeb ', options);
+                console.log(this.RemoteRef);
                 return options;
             });
         }
-        openStore(options) {
+        open(options) {
+            var _a;
             return __awaiter(this, void 0, void 0, function* () {
-                let ret = false;
-                let dbName = options.database
-                    ? `${options.database}SQLite.db`
-                    : 'storageSQLite.db';
-                let tableName = options.table ? options.table : 'storage_store';
-                ret = yield this.mDb.openStore(dbName, tableName);
-                return Promise.resolve({ result: ret });
-            });
-        }
-        setTable(options) {
-            return __awaiter(this, void 0, void 0, function* () {
-                let tableName = options.table;
-                if (tableName == null) {
+                if (typeof options.database === 'undefined') {
                     return Promise.reject({
                         result: false,
-                        message: 'Must provide a table name',
+                        message: 'Must provide a database name',
                     });
                 }
-                let ret = false;
-                let message = '';
-                if (this.mDb) {
-                    ret = yield this.mDb.setTable(tableName);
-                    if (ret) {
-                        return Promise.resolve({ result: ret, message: message });
-                    }
-                    else {
+                const dbName = options.database;
+                const dbVersion = (_a = options.version) !== null && _a !== void 0 ? _a : 1;
+                /*
+                        let encrypted: boolean = options.encrypted ? options.encrypted : false;
+                        let inMode: string = "no-encryption";
+                        let secretKey: string = "";
+                        let newsecretKey: string = "";
+                        */
+                console.log('---> in Open this.versionUpgrades ' + this.versionUpgrades);
+                this.mDb = new DatabaseSQLiteHelper(`${dbName}SQLite.db`, dbVersion, this.versionUpgrades /*,encrypted,inMode,secretKey,newsecretKey*/);
+                yield this.mDb.setup();
+                if (!this.mDb.isOpen) {
+                    return Promise.resolve({
+                        result: false,
+                        message: `Open command failed: Database ${dbName}SQLite.db not opened`,
+                    });
+                }
+                else {
+                    return Promise.resolve({ result: true });
+                }
+            });
+        }
+        close(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                if (typeof options.database === 'undefined') {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Close command failed: Must provide a database name',
+                    });
+                }
+                const dbName = options.database;
+                const ret = yield this.mDb.close(`${dbName}SQLite.db`);
+                if (!ret) {
+                    return Promise.reject({ status: false, message: 'Close command failed' });
+                }
+                return Promise.resolve({ result: true });
+            });
+        }
+        execute(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const retRes = { changes: -1 };
+                if (typeof options.statements === 'undefined') {
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'Execute command failed : Must provide raw SQL statements',
+                    });
+                }
+                const statements = options.statements;
+                const ret = yield this.mDb.exec(statements);
+                return Promise.resolve({ changes: ret });
+            });
+        }
+        executeSet(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const retRes = { changes: -1 };
+                if (typeof options.set === 'undefined') {
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'ExecuteSet command failed : Must provide a set of SQL statements',
+                    });
+                }
+                const setOfStatements = options.set;
+                if (setOfStatements.length === 0) {
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'ExecuteSet command failed : Must provide a non-empty set of SQL statements',
+                    });
+                }
+                for (let i = 0; i < setOfStatements.length; i++) {
+                    if (!('statement' in setOfStatements[i]) ||
+                        !('values' in setOfStatements[i])) {
                         return Promise.reject({
-                            result: ret,
-                            message: 'failed in adding table',
+                            changes: retRes,
+                            message: 'ExecuteSet command failed : Must provide a set as Array of {statement,values}',
                         });
                     }
                 }
-                else {
+                const ret = yield this.mDb.execSet(setOfStatements);
+                return Promise.resolve({ changes: ret });
+            });
+        }
+        run(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const retRes = { changes: -1 };
+                if (typeof options.statement === 'undefined') {
                     return Promise.reject({
-                        result: ret,
-                        message: 'Must open a store first',
+                        changes: retRes,
+                        message: 'Run command failed : Must provide a SQL statement',
                     });
                 }
-            });
-        }
-        set(options) {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                let key = options.key;
-                if (key == null) {
-                    return Promise.reject({ result: false, message: 'Must provide key' });
+                if (typeof options.values === 'undefined') {
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'Run command failed : Values should be an Array of values',
+                    });
                 }
-                let value = options.value;
-                if (value == null) {
-                    return Promise.reject({ result: false, message: 'Must provide value' });
+                const statement = options.statement;
+                const values = options.values;
+                let ret;
+                if (values.length > 0) {
+                    ret = yield this.mDb.run(statement, values);
                 }
-                let data = new Data();
-                data.name = key;
-                data.value = value;
-                ret = yield this.mDb.set(data);
-                return Promise.resolve({ result: ret });
-            });
-        }
-        get(options) {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                let key = options.key;
-                if (key == null) {
-                    return Promise.reject({ result: false, message: 'Must provide key' });
+                else {
+                    ret = yield this.mDb.run(statement, []);
                 }
-                let data = yield this.mDb.get(key);
-                ret = data != null && data.id != null ? data.value : null;
-                return Promise.resolve({ value: ret });
+                return Promise.resolve({ changes: ret });
             });
         }
-        remove(options) {
+        query(options) {
             return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                let key = options.key;
-                if (key == null) {
-                    return Promise.reject({ result: false, message: 'Must provide key' });
+                if (typeof options.statement === 'undefined') {
+                    return Promise.reject({
+                        values: [],
+                        message: 'Query command failed : Must provide a SQL statement',
+                    });
                 }
-                ret = yield this.mDb.remove(key);
-                return Promise.resolve({ result: ret });
-            });
-        }
-        clear() {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                ret = yield this.mDb.clear();
-                return Promise.resolve({ result: ret });
-            });
-        }
-        iskey(options) {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                let key = options.key;
-                if (key == null) {
-                    return Promise.reject({ result: false, message: 'Must provide key' });
+                if (typeof options.values === 'undefined') {
+                    return Promise.reject({
+                        values: [],
+                        message: 'Query command failed : Values should be an Array of values',
+                    });
                 }
-                ret = yield this.mDb.iskey(key);
-                return Promise.resolve({ result: ret });
-            });
-        }
-        keys() {
-            return __awaiter(this, void 0, void 0, function* () {
+                const statement = options.statement;
+                const values = options.values;
                 let ret;
-                ret = yield this.mDb.keys();
-                return Promise.resolve({ keys: ret });
-            });
-        }
-        values() {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret;
-                ret = yield this.mDb.values();
+                if (values.length > 0) {
+                    ret = yield this.mDb.query(statement, values);
+                }
+                else {
+                    ret = yield this.mDb.query(statement, []);
+                }
                 return Promise.resolve({ values: ret });
             });
         }
-        keysvalues() {
-            return __awaiter(this, void 0, void 0, function* () {
-                let ret = [];
-                let results;
-                results = yield this.mDb.keysvalues();
-                for (let i = 0; i < results.length; i++) {
-                    let res = { key: results[i].name, value: results[i].value };
-                    ret.push(res);
-                }
-                return Promise.resolve({ keysvalues: ret });
-            });
-        }
-        deleteStore(options) {
+        isDBExists(options) {
             return __awaiter(this, void 0, void 0, function* () {
                 let dbName = options.database;
                 if (dbName == null) {
@@ -2683,19 +3962,191 @@ var capacitorPlugin = (function (exports) {
                     });
                 }
                 dbName = `${options.database}SQLite.db`;
-                if (typeof this.mDb === 'undefined' || this.mDb === null)
-                    this.mDb = new StorageDatabaseHelper();
-                const ret = yield this.mDb.deleteStore(dbName);
-                this.mDb = null;
+                const utils = new UtilsSQLite();
+                const dbPath = utils.getDBPath(dbName);
+                let message = '';
+                let ret = false;
+                try {
+                    if (this.NodeFs.existsSync(dbPath)) {
+                        //file exists
+                        ret = true;
+                    }
+                }
+                catch (err) {
+                    ret = false;
+                    message = err.message;
+                }
+                finally {
+                    if (ret) {
+                        return Promise.resolve({ result: ret });
+                    }
+                    else {
+                        return Promise.resolve({ result: ret, message: message });
+                    }
+                }
+            });
+        }
+        deleteDatabase(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                let dbName = options.database;
+                if (dbName == null) {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide a Database Name',
+                    });
+                }
+                dbName = `${options.database}SQLite.db`;
+                if (typeof this.mDb === 'undefined' || this.mDb === null) {
+                    return Promise.reject({
+                        result: false,
+                        message: 'The database is not opened',
+                    });
+                }
+                const ret = yield this.mDb.deleteDB(dbName);
                 return Promise.resolve({ result: ret });
             });
         }
+        isJsonValid(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const jsonStrObj = options.jsonstring;
+                if (typeof jsonStrObj != 'string' ||
+                    jsonStrObj == null ||
+                    jsonStrObj.length === 0) {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide a json object',
+                    });
+                }
+                const jsonObj = JSON.parse(jsonStrObj);
+                const isValid = isJsonSQLite(jsonObj);
+                if (!isValid) {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Stringify Json Object not Valid',
+                    });
+                }
+                else {
+                    return Promise.resolve({ result: true });
+                }
+            });
+        }
+        importFromJson(options) {
+            var _a;
+            return __awaiter(this, void 0, void 0, function* () {
+                const retRes = { changes: -1 };
+                const jsonStrObj = options.jsonstring;
+                if (typeof jsonStrObj != 'string' ||
+                    jsonStrObj == null ||
+                    jsonStrObj.length === 0) {
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'Must provide a json object',
+                    });
+                }
+                const jsonObj = JSON.parse(jsonStrObj);
+                const isValid = isJsonSQLite(jsonObj);
+                if (!isValid)
+                    return Promise.reject({
+                        changes: retRes,
+                        message: 'Must provide a jsonSQLite object',
+                    });
+                const dbName = `${jsonObj.database}SQLite.db`;
+                const dbVersion = (_a = jsonObj.version) !== null && _a !== void 0 ? _a : 1;
+                this.mDb = new DatabaseSQLiteHelper(dbName, dbVersion, {});
+                yield this.mDb.setup();
+                const ret = yield this.mDb.importJson(jsonObj);
+                this.mDb.close(dbName);
+                //      this.mDb = null;
+                return Promise.resolve({ changes: ret });
+            });
+        }
+        exportToJson(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                const retRes = {};
+                if (typeof options.jsonexportmode === 'undefined') {
+                    return Promise.reject({
+                        export: retRes,
+                        message: 'Must provide a json export mode',
+                    });
+                }
+                if (options.jsonexportmode != 'full' &&
+                    options.jsonexportmode != 'partial') {
+                    return Promise.reject({
+                        export: retRes,
+                        message: "Json export mode should be 'full' or 'partial'",
+                    });
+                }
+                const exportMode = options.jsonexportmode;
+                const ret = yield this.mDb.exportJson(exportMode);
+                return Promise.resolve({ export: ret });
+            });
+        }
+        createSyncTable() {
+            return __awaiter(this, void 0, void 0, function* () {
+                const ret = yield this.mDb.createSyncTable();
+                return Promise.resolve({ changes: ret });
+            });
+        }
+        setSyncDate(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                if (typeof options.syncdate === 'undefined' ||
+                    typeof options.syncdate != 'string') {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide a synchronization date',
+                    });
+                }
+                const syncDate = options.syncdate;
+                const ret = yield this.mDb.setSyncDate(syncDate);
+                return Promise.resolve({ result: ret });
+            });
+        }
+        addUpgradeStatement(options) {
+            return __awaiter(this, void 0, void 0, function* () {
+                if (typeof options.database === 'undefined' ||
+                    typeof options.database != 'string') {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide a database name',
+                    });
+                }
+                if (typeof options.upgrade[0] === 'undefined') {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide an upgrade Object',
+                    });
+                }
+                const upgrade = options.upgrade[0];
+                const keys = Object.keys(upgrade);
+                if (!keys.includes('fromVersion') ||
+                    !keys.includes('toVersion') ||
+                    !keys.includes('statement')) {
+                    return Promise.reject({
+                        result: false,
+                        message: 'Must provide an upgrade capSQLiteVersionUpgrade Object',
+                    });
+                }
+                const fullDBName = `${options.database}SQLite.db`;
+                if (!this.versionUpgrades[fullDBName]) {
+                    this.versionUpgrades[fullDBName] = {};
+                }
+                this.versionUpgrades[fullDBName][upgrade.fromVersion] = {
+                    fromVersion: upgrade.fromVersion,
+                    toVersion: upgrade.toVersion,
+                    statement: upgrade.statement,
+                };
+                if (upgrade.set)
+                    this.versionUpgrades[fullDBName][upgrade.fromVersion]['set'] =
+                        upgrade.set;
+                return Promise.resolve({ result: true });
+            });
+        }
     }
-    const CapacitorDataStorageSqlite = new CapacitorDataStorageSqliteElectronWeb();
-    registerWebPlugin(CapacitorDataStorageSqlite);
+    const CapacitorSQLite = new CapacitorSQLiteElectronWeb();
+    registerWebPlugin(CapacitorSQLite);
 
-    exports.CapacitorDataStorageSqlite = CapacitorDataStorageSqlite;
-    exports.CapacitorDataStorageSqliteElectronWeb = CapacitorDataStorageSqliteElectronWeb;
+    exports.CapacitorSQLite = CapacitorSQLite;
+    exports.CapacitorSQLiteElectronWeb = CapacitorSQLiteElectronWeb;
 
     return exports;
 

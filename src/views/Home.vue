@@ -1,8 +1,6 @@
 <template>
   <h1>Home</h1>
-  <button @click="$router.push('/storedefault')">StoreDefault</button>
-  <button @click="$router.push('/storeonedbonetable')">StoreOneDBOneTable</button>
-  <button @click="$router.push('/storeonedbtwotables')">StoreOneDBTwoTables</button>
+  <button @click="$router.push('/databasenoencryption')">DatabaseNoEncryption</button>
 </template>
 <style>
 h1 {
