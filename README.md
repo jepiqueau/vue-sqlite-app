@@ -1,8 +1,8 @@
-# vue-datastoragesqlite-app
+# vue-sqlite-app
 Sample project that shows an integration of
- - [capacitor-data-storage-sqlite] (https://github.com/jepiqueau/capacitor-data-storage-sqlite/blob/master/readme.md)
+ - [@capacitor-community/sqlite] (https://github.com/capacitor-community/sqlite)
 
- - [vue-data-storage-sqlite-hook] (https://www.npmjs.com/package/vue-data-storage-sqlite-hook)
+ - [vue-sqlite-hook] (https://www.npmjs.com/package/vue-sqlite-hook)
 
 in Vue App.
 
@@ -11,8 +11,8 @@ in Vue App.
 
 To start clone the project
 ```bash
-git clone https://github.com/jepiqueau/vue-datastoragesqlite-app.git 
-cd vue-datastoragesqlite-app
+git clone https://github.com/jepiqueau/vue-sqlite-app.git 
+cd vue-qlite-app
 git remote rm origin
 npm install
 cd electron
@@ -22,8 +22,8 @@ cd ..
 ```
 
 
-To install the latest release of the ```capacitor-data-storage-sqlite``` plugin
-and the latest release of ```vue-data-storage-sqlite-hook``` 
+To install the latest release of the ```@capacitor-community/sqlite``` plugin
+and the latest release of ```vue-sqlite-hook``` 
 
 
 ```bash
