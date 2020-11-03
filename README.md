@@ -21,13 +21,6 @@
 | Quéau Jean Pierre | [jepiqueau](https://github.com/jepiqueau) |        |
 
 
-# vue-sqlite-app
-Sample project that shows an integration of
- - [@capacitor-community/sqlite] (https://github.com/capacitor-community/sqlite)
-
- - [vue-sqlite-hook] (https://www.npmjs.com/package/vue-sqlite-hook)
-
-in Vue App.
 
 
 ## Installation
@@ -47,9 +40,9 @@ cd ..
 
 To install the latest release of 
 
- - [@capacitor-community/sqlite] (https://github.com/capacitor-community/sqlite)
+ - [@capacitor-community/sqlite](https://github.com/capacitor-community/sqlite)
 
- - [vue-sqlite-hook] (https://www.npmjs.com/package/vue-sqlite-hook)
+ - [vue-sqlite-hook](https://www.npmjs.com/package/vue-sqlite-hook)
 
 run the following commands
 
