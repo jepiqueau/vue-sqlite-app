@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">vue-datastoragesqlite-app</string>
-    <string name="title_activity_main">vue-datastoragesqlite-app</string>
-    <string name="package_name">com.jeep.app.vue.datastoragesqlite</string>
-    <string name="custom_url_scheme">com.jeep.app.vue.datastoragesqlite</string>
+    <string name="app_name">vue-sqlite-app</string>
+    <string name="title_activity_main">vue-sqlite-app</string>
+    <string name="package_name">com.jeep.app.vue.sqlite</string>
+    <string name="custom_url_scheme">com.jeep.app.vue.sqlite</string>
 </resources>

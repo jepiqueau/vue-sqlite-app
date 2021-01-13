@@ -1,4 +1,4 @@
-package com.jeep.app.vue.datastoragesqlite;
+package com.jeep.app.vue.sqlite;
 
 import android.os.Bundle;
 
@@ -6,6 +6,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 
 import java.util.ArrayList;
+
 import com.getcapacitor.community.database.sqlite.CapacitorSQLite;
 
 public class MainActivity extends BridgeActivity {
