@@ -1,13 +1,6 @@
 <template>
   <h1>DatabaseNoEncryption</h1>
-  <Suspense>
-    <template #default>
-      <NoEncryptionTest />
-    </template>
-    <template #feedback>
-      <div> Loading ... </div>
-    </template>
-  </Suspense>
+  <NoEncryptionTest />
 </template>
 <script>
 import NoEncryptionTest from '@/components/NoEncryptionTest.vue';
