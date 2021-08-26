@@ -43,6 +43,7 @@ async function noEncryptionTest(log, echo, createConnection, closeConnection) {
         log.value = log.value.concat(`> Echo not returning "Hello from echo"\n`);
         return false;
     }
+
     log.value = log.value.concat("> Echo successful\n");
     // create a connection for NoEncryption
     const db = await createConnection("NoEncryption");
@@ -100,14 +101,13 @@ async function noEncryptionTest(log, echo, createConnection, closeConnection) {
       PRAGMA foreign_keys = OFF;
       DROP TABLE IF EXISTS users;
       DROP TABLE IF EXISTS messages;
-      VACUUM;
       PRAGMA foreign_keys = ON;
     `;  
     // Drop tables if exists
     res = await db.execute(dropTablesTablesNoEncryption, false);
     console.log(`drop tables res: ${JSON.stringify(res)}`);
     log.value = log.value.concat(`drop tables res: ${JSON.stringify(res)}\n`);
-    if(res.changes.changes !== 0 && res.changes.changes !== 1) {
+    if(res.changes.changes < 0) {
       log.value = log.value.concat(" Execute1 failed\n");
       return false;
     }
