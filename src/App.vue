@@ -1,4 +1,7 @@
 <template>
+    <div v-if="platform === 'web'">
+      <jeep-sqlite />
+    </div>
   <div id="nav">
     <router-link to="/">Home</router-link> |
     <router-link to="/about">About</router-link>
@@ -7,13 +10,40 @@
 </template>
 
 <script>
-import { defineComponent } from "vue";
+import { defineComponent, getCurrentInstance, onMounted } from "vue";
+import { useSQLite } from 'vue-sqlite-hook/dist';
+import { Capacitor } from '@capacitor/core';
 
 export default defineComponent({
   name: "App",
-  async created() {
-    console.log("$$$ in App.vue created() $$$");
-  },
+  setup() {
+    const platform = Capacitor.getPlatform();
+    const app = getCurrentInstance();
+    const jsonListeners = app?.appContext.config.globalProperties.$isJsonListeners;
+    const contentMessage = app?.appContext.config.globalProperties.$messageContent;
+    onMounted(async () => {
+      console.log(' in App on Mounted');
+      const onProgressImport = async (progress) => {
+        if(jsonListeners.jsonListeners.value) {
+          contentMessage.setMessage(
+              contentMessage.message.value.concat(`${progress}\n`));
+        }
+      }
+      const onProgressExport = async (progress) => {
+        if(jsonListeners.jsonListeners.value) {
+          contentMessage.setMessage(
+            contentMessage.message.value.concat(`${progress}\n`));
+        }
+      }  
+      if( app != null) { 
+        app.appContext.config.globalProperties.$sqlite = useSQLite({
+          onProgressImport,
+          onProgressExport
+        });
+      }
+    });
+    return {platform}
+  }
 });
 </script>
 

@@ -9,20 +9,19 @@
 </template>
 
 <script >
-import { defineComponent, ref, onMounted } from 'vue';
-import { useSQLite } from 'vue-sqlite-hook/dist';
+import { defineComponent, ref, onMounted, getCurrentInstance } from 'vue';
 
 export default defineComponent({
   name: 'NoEncryptionTest',
   setup() {
     const log = ref("");
-    const { echo, createConnection, closeConnection} = useSQLite({});
+    const app = getCurrentInstance()
+    const sqlite = app?.appContext.config.globalProperties.$sqlite;
     onMounted(async () => {
 
       log.value = log.value
                   .concat("* After  useSQLite definition *\n"); 
-      const retNoEncryption = await noEncryptionTest(log, echo,
-                                    createConnection, closeConnection);
+      const retNoEncryption = await noEncryptionTest(log, sqlite);
       if(!retNoEncryption) {
         log.value = log.value
                   .concat("* testDatabaseNoEncryption failed*\n"); 
@@ -36,9 +35,9 @@ export default defineComponent({
   },
 
 });
-async function noEncryptionTest(log, echo, createConnection, closeConnection) {
+async function noEncryptionTest(log, sqlite) {
   try {
-    let res = await echo("Hello from echo");
+    let res = await sqlite.echo("Hello from echo");
     if(res.value !== "Hello from echo"){
         log.value = log.value.concat(`> Echo not returning "Hello from echo"\n`);
         return false;
@@ -46,7 +45,7 @@ async function noEncryptionTest(log, echo, createConnection, closeConnection) {
 
     log.value = log.value.concat("> Echo successful\n");
     // create a connection for NoEncryption
-    const db = await createConnection("NoEncryption");
+    const db = await sqlite.createConnection("NoEncryption");
     log.value = log.value.concat("> createConnection " +
                                             " 'NoEncryption' successful\n");
     // open NoEncryption database
@@ -179,7 +178,7 @@ async function noEncryptionTest(log, echo, createConnection, closeConnection) {
 
 
     // Close Connection NoEncryption        
-    await closeConnection("NoEncryption"); 
+    await sqlite.closeConnection("NoEncryption"); 
 
     log.value = log.value.concat("* Ending testDatabaseNoEncryption *\n");     
     return true;  
