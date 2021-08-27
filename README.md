@@ -28,7 +28,7 @@
 To start clone the project
 ```bash
 git clone https://github.com/jepiqueau/vue-sqlite-app.git 
-cd vue-qlite-app
+cd vue-sqlite-app
 git remote rm origin
 npm install
 cd electron
@@ -80,7 +80,7 @@ npx cap open android
 ### ELECTRON
 
 ```
-npx cap open @capacitor-community/eletron
+npx cap open @capacitor-community/electron
 ```
 
 
