@@ -33,7 +33,7 @@ git remote rm origin
 npm install
 cd electron
 npm install
-npm run postinstall
+npm run build
 cd ..
 ```
 
@@ -62,7 +62,7 @@ npx cap copy @capacitor-community/electron
 ### BROWSER
 
 ```
-npx cap serve
+npx run serve
 ```
 
 ### IOS
