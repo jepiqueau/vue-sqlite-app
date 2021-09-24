@@ -18,24 +18,28 @@ export default defineComponent({
     const app = getCurrentInstance()
     const sqlite = app?.appContext.config.globalProperties.$sqlite;
     onMounted(async () => {
+      const platform = (await sqlite.getPlatform()).platform;
+      console.log(`platform ${platform}`);
 
       log.value = log.value
                   .concat("* After  useSQLite definition *\n"); 
-      const retNoEncryption = await noEncryptionTest(log, sqlite);
+      const retNoEncryption = await noEncryptionTest(log, sqlite, platform);
       if(!retNoEncryption) {
         log.value = log.value
                   .concat("* testDatabaseNoEncryption failed*\n"); 
         log.value = log.value.concat("\n* The set of tests failed *\n");
+        console.log('The set of tests failed');
       } else {
         log.value = log.value
                     .concat("\n* The set of tests was successful *\n");
+        console.log('The set of tests was successful');
       }
     });
     return { log };
   },
 
 });
-async function noEncryptionTest(log, sqlite) {
+async function noEncryptionTest(log, sqlite, platform) {
   try {
     let res = await sqlite.echo("Hello from echo");
     if(res.value !== "Hello from echo"){
@@ -122,6 +126,11 @@ async function noEncryptionTest(log, sqlite) {
       log.value = log.value.concat(" Execute3 failed\n");
       return false;
     }
+    if(platform === "web") {
+      // save the database
+      await sqlite.saveToStore("NoEncryption");
+    }
+
     // Select all Users
     res = await db.query("SELECT * FROM users");
     if(res.values.length !== 2 ||

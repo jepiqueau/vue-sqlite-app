@@ -19,27 +19,21 @@ export default defineComponent({
   setup() {
     const platform = Capacitor.getPlatform();
     const app = getCurrentInstance();
-    const jsonListeners = app?.appContext.config.globalProperties.$isJsonListeners;
-    const contentMessage = app?.appContext.config.globalProperties.$messageContent;
     onMounted(async () => {
       console.log(' in App on Mounted');
-      const onProgressImport = async (progress) => {
-        if(jsonListeners.jsonListeners.value) {
-          contentMessage.setMessage(
-              contentMessage.message.value.concat(`${progress}\n`));
-        }
-      }
-      const onProgressExport = async (progress) => {
-        if(jsonListeners.jsonListeners.value) {
-          contentMessage.setMessage(
-            contentMessage.message.value.concat(`${progress}\n`));
-        }
-      }  
       if( app != null) { 
-        app.appContext.config.globalProperties.$sqlite = useSQLite({
-          onProgressImport,
-          onProgressExport
-        });
+        app.appContext.config.globalProperties.$sqlite = useSQLite();
+        if(platform === "web") {
+          await customElements.whenDefined('jeep-sqlite');
+          const jeepSqliteEl = document.querySelector('jeep-sqlite');
+          if(jeepSqliteEl != null) {
+            // Initialize the Web Store since @capacitor-community/sqlite@3.2.3-1
+            await app.appContext.config.globalProperties.$sqlite.initWebStore();
+            console.log(`isSoreOpen ${await jeepSqliteEl.isStoreOpen()}`);
+          } else {
+            console.log('$$ jeepSqliteEl is null');
+          }
+        }
       }
     });
     return {platform}
