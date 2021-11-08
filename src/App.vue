@@ -11,7 +11,7 @@
 
 <script>
 import { defineComponent, getCurrentInstance, onMounted } from "vue";
-import { useSQLite } from 'vue-sqlite-hook/dist';
+import { useSQLite } from 'vue-sqlite-hook';
 import { Capacitor } from '@capacitor/core';
 
 export default defineComponent({
