@@ -62,7 +62,7 @@ npx cap copy @capacitor-community/electron
 ### BROWSER
 
 ```
-npx run serve
+npm run serve
 ```
 
 ### IOS
