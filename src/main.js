@@ -26,6 +26,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       await sqlite.initWebStore();
     }
     // example: database creation with standard SQLite statements
+    //-->> if needed not required
     const ret = await sqlite.checkConnectionsConsistency();
     console.log(`after checkConnectionsConsistency ${ret.result}`);
     const isConn = (await sqlite.isConnection("db_tab3")).result;
@@ -51,6 +52,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       throw new Error(`Error: execute failed`);
     }
     await sqlite.closeConnection("db_tab3");
+    // if needed not required --<<
 
     router.isReady().then(() => {
       app.mount("#app");
