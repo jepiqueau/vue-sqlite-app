@@ -1,5 +1,5 @@
 import { createWebHistory, createRouter } from "vue-router";
-import Home from "@/views/Home.vue";
+import HomePage from "@/views/HomePage.vue";
 import DatabaseNoEncryption from "@/views/DatabaseNoEncryption.vue";
 import NotFound from "@/views/NotFound.vue";
 
@@ -7,7 +7,7 @@ const routes = [
   {
     path: "/",
     name: "Home",
-    component: Home,
+    component: HomePage,
   },
   {
     path: "/databasenoencryption",
@@ -18,7 +18,6 @@ const routes = [
     path: "/:catchAll(.*)",
     component: NotFound,
   },
-
 ];
 
 const router = createRouter({

@@ -1,8 +1,0 @@
-{
-  "appId": "com.jeep.app.vue.sqlite",
-  "appName": "vue-sqlite-app",
-  "bundledWebRuntime": false,
-  "npmClient": "npm",
-  "webDir": "dist",
-  "cordova": {}
-}

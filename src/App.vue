@@ -1,7 +1,4 @@
 <template>
-    <div v-if="platform === 'web'">
-      <jeep-sqlite />
-    </div>
   <div id="nav">
     <router-link to="/">Home</router-link> |
     <router-link to="/about">About</router-link>
@@ -11,33 +8,20 @@
 
 <script>
 import { defineComponent, getCurrentInstance, onMounted } from "vue";
-import { useSQLite } from 'vue-sqlite-hook';
-import { Capacitor } from '@capacitor/core';
+import { useSQLite } from "vue-sqlite-hook";
 
 export default defineComponent({
   name: "App",
   setup() {
-    const platform = Capacitor.getPlatform();
     const app = getCurrentInstance();
     onMounted(async () => {
-      console.log(' in App on Mounted');
-      if( app != null) { 
+      console.log(" in App on Mounted");
+      if (app != null) {
         app.appContext.config.globalProperties.$sqlite = useSQLite();
-        if(platform === "web") {
-          await customElements.whenDefined('jeep-sqlite');
-          const jeepSqliteEl = document.querySelector('jeep-sqlite');
-          if(jeepSqliteEl != null) {
-            // Initialize the Web Store since @capacitor-community/sqlite@3.2.3-1
-            await app.appContext.config.globalProperties.$sqlite.initWebStore();
-            console.log(`isSoreOpen ${await jeepSqliteEl.isStoreOpen()}`);
-          } else {
-            console.log('$$ jeepSqliteEl is null');
-          }
-        }
       }
     });
-    return {platform}
-  }
+    return;
+  },
 });
 </script>
 
