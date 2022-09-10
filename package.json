@@ -1,6 +1,6 @@
 {
   "name": "vue-sqlite-app",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "scripts": {
     "update": "npm install --save @capacitor-community/sqlite@latest --save-dev vue-sqlite-hook@latest --save-dev jeep-sqlite@latest",
@@ -17,12 +17,11 @@
   ],
   "dependencies": {
     "@capacitor-community/electron": "^4.1.0",
+    "@capacitor-community/sqlite": "^3.7.0",
     "@capacitor/android": "^3.7.0",
     "@capacitor/core": "^3.7.0",
     "@capacitor/ios": "^3.7.0",
     "core-js": "^3.8.3",
-    "jeep-sqlite": "^1.5.8",
-    "sql.js": "^1.7.0",
     "vue": "^3.2.13",
     "vue-class-component": "^8.0.0-0",
     "vue-router": "^4.0.3"
@@ -30,7 +29,6 @@
   "devDependencies": {
     "@babel/core": "^7.12.16",
     "@babel/eslint-parser": "^7.12.16",
-    "@capacitor-community/sqlite": "^3.7.0",
     "@capacitor/cli": "^3.7.0",
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-eslint": "~5.0.0",
